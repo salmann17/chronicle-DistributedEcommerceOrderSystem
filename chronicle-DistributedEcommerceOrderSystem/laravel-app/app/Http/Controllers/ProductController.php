@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 
 class ProductController extends Controller
 {
@@ -28,6 +29,8 @@ class ProductController extends Controller
     {
         $product = Product::create($request->validated());
 
+        Cache::forget("product:{$product->id}");
+
         return response()->json([
             'data' => $product,
         ], 201);
@@ -44,8 +47,12 @@ class ProductController extends Controller
             ], 404);
         }
 
+        $cachedProduct = Cache::remember("product:{$product->id}", 60, function () use ($product) {
+            return $product;
+        });
+
         return response()->json([
-            'data' => $product,
+            'data' => $cachedProduct,
         ]);
     }
 
@@ -62,6 +69,8 @@ class ProductController extends Controller
 
         $product->update($request->validated());
 
+        Cache::forget("product:{$product->id}");
+
         return response()->json([
             'data' => $product,
         ]);
@@ -77,6 +86,8 @@ class ProductController extends Controller
                 'message' => 'Product not found',
             ], 404);
         }
+
+        Cache::forget("product:{$product->id}");
 
         $product->delete();
 
