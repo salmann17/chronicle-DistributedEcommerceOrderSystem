@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Product;
 use App\Http\Requests\PurchaseRequest;
+use App\Services\CeleryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -64,17 +65,10 @@ class OrderController extends Controller
     }
 
     /**
-     * Dispatch background order processing (placeholder).
-     * This will be replaced with actual Python service integration later.
+     * Dispatch background order processing.
      */
     private function dispatchBackgroundOrderProcessed(int $orderId): void
     {
-        try {
-            Log::info("Background order processing triggered for order ID: {$orderId}");
-            // TODO: Integrate with Python background service
-            // Example: Http::post('http://python-service/process-order', ['order_id' => $orderId]);
-        } catch (\Exception $e) {
-            Log::warning("Background task dispatch failed for order {$orderId}: " . $e->getMessage());
-        }
+        CeleryService::dispatchOrderProcessed($orderId);
     }
 }
