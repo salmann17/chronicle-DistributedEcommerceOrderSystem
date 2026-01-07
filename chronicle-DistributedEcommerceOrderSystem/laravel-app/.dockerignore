@@ -1,0 +1,13 @@
+.git
+.gitignore
+.env
+.env.example
+README.md
+tests/
+node_modules/
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+vendor/
+*.md

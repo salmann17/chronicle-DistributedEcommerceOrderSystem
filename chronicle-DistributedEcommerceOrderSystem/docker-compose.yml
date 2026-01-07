@@ -1,0 +1,120 @@
+services:
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: chronicle-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DB_DATABASE:-laravel}
+      MYSQL_USER: ${DB_USERNAME:-laravel}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-password}
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - chronicle-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: chronicle-redis
+    restart: unless-stopped
+    networks:
+      - chronicle-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Laravel Application
+  laravel-app:
+    build:
+      context: ./laravel-app
+      dockerfile: Dockerfile
+    container_name: chronicle-laravel
+    restart: unless-stopped
+    working_dir: /var/www
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      APP_KEY: ${APP_KEY}
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-laravel}
+      DB_USERNAME: ${DB_USERNAME:-laravel}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-null}
+    volumes:
+      - ./laravel-app:/var/www
+      - laravel_storage:/var/www/storage
+    networks:
+      - chronicle-network
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Nginx Web Server
+  web:
+    image: nginx:alpine
+    container_name: chronicle-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8000}:80"
+    volumes:
+      - ./laravel-app:/var/www
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - chronicle-network
+    depends_on:
+      - laravel-app
+
+  # Celery Service (Flask API)
+  celery-service:
+    build:
+      context: ./celery-service
+      dockerfile: Dockerfile
+    container_name: chronicle-celery-api
+    restart: unless-stopped
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    networks:
+      - chronicle-network
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Celery Worker
+  celery-worker:
+    build:
+      context: ./celery-service
+      dockerfile: Dockerfile
+    container_name: chronicle-celery-worker
+    restart: unless-stopped
+    command: celery -A celery_app worker -l info
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    networks:
+      - chronicle-network
+    depends_on:
+      redis:
+        condition: service_healthy
+
+networks:
+  chronicle-network:
+    driver: bridge
+
+volumes:
+  db_data:
+  laravel_storage:
